@@ -1,5 +1,6 @@
 TARGET = Player
 QT += sql svg
+QT += network
 ########## template for QtAV app project BEGIN ################
 greaterThan(QT_MAJOR_VERSION, 4) {
   QT += avwidgets
@@ -49,7 +50,8 @@ HEADERS = \
     $$COMMON/Config.h \
     $$COMMON/qoptions.h \
     $$COMMON/ScreenSaver.h \
-    $$COMMON/common_export.h
+    $$COMMON/common_export.h \
+    VideoRenderer_p.h
 
 SOURCES = \
     $$COMMON/common.cpp \
@@ -63,3 +65,7 @@ macx:!ios {
     LIBS += -framework CoreServices #-framework ScreenSaver
 }
 include(src.pri)
+QT += av avwidgets
+#LIBS += -lQtAV -lQtAVWidgets
+LIBS     += -L$$quote(D:\QT\My_Project\QT_LED\build-QtAV-Desktop_Qt_5_14_2_MinGW_64_bit-Release\lib_win_x86_64) -lQtAV1 -lQtAVWidgets1
+LIBS += -lopengl32 -lglu32

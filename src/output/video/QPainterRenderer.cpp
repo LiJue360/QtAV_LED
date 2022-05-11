@@ -22,7 +22,7 @@
 #include <QtAV/QPainterRenderer.h>
 #include <QtAV/private/QPainterRenderer_p.h>
 #include <QtAV/FilterContext.h>
-
+#include <QPainter>
 namespace QtAV {
 
 QPainterRenderer::QPainterRenderer()
@@ -68,6 +68,32 @@ bool QPainterRenderer::preparePixmap(const VideoFrame &frame)
         image = image.rgbSwapped();
     d.pixmap = QPixmap::fromImage(image);
     //Format_RGB32 is fast. see document
+    QPainter painter(&(d.pixmap));
+    QFont font;
+    font.setFamily("Microsoft YaHei");                            //设置字体 微软雅黑、宋体之类的
+    font.setPointSize(18);                                        //设置字体大小
+    font.setItalic(true);                                         //斜体
+    painter.setFont(font);
+    painter.setPen(Qt::yellow);
+    int rowCount = d.video_frame.width()/ 64;
+    int colCount = d.video_frame.height() / 64;
+    int count = 0;
+    for (int r = 0; r < rowCount; r++)
+    {
+            for (int c = 0; c < colCount; c++)
+            {
+               painter.drawText(20 + 64*c, 28 + 64*r,QString::number(++count));//写水印
+            }
+    }
+    for (int x = 64; x < d.video_frame.width(); x += 64)
+    {
+        painter.drawLine(x, 0, x, d.video_frame.height());
+    }
+
+    for (int y = 64; y < d.video_frame.height(); y += 64)
+    {
+        painter.drawLine(0, y, d.video_frame.width(), y);
+    }
     return true;
 }
 

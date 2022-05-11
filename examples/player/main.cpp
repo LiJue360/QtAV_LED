@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
     options.parse(argc, argv);
     do_common_options_before_qapp(options);
 
-    if (options.value(QString::fromLatin1("vd-list")).toBool()) {
+    if (options.value(QString::fromLatin1("vd-list")).toBool()) {   //打印VideoDecoder-list信息
         PropertyEditor pe;
         VideoDecoderId *vid = NULL;
         while ((vid = VideoDecoder::next(vid)) != NULL) {
@@ -100,14 +100,14 @@ int main(int argc, char *argv[])
 //    a.setApplicationDisplayName(QString::fromLatin1("QtAV Player"));
     QDir::setCurrent(qApp->applicationDirPath());
 
-    do_common_options(options);
+    do_common_options(options);       //初始化参数配置
     set_opengl_backend(options.option(QString::fromLatin1("gl")).value().toString(), a.arguments().first());
     load_qm(QStringList() << QString::fromLatin1("player"), options.value(QString::fromLatin1("language")).toString());
     QtAV::setFFmpegLogLevel(options.value(QString::fromLatin1("ffmpeg-log")).toByteArray());
 
     QOption op = options.option(QString::fromLatin1("vo"));
     QString vo = op.value().toString();
-    if (!op.isSet()) {
+    if (!op.isSet()) {                          //检测vo参数是否被设置
         QString exe(a.arguments().at(0));
         int i = exe.lastIndexOf(QLatin1Char('-'));
         if (i > 0) {
@@ -115,10 +115,10 @@ int main(int argc, char *argv[])
         }
     }
     qDebug("vo: %s", vo.toUtf8().constData());
-    MainWindow window;
+    MainWindow window;                                  //设置window窗口参数
     window.setProperty("rendererId", rendererId_from_opt_name(vo.toLower()));
     window.show();
-    window.setWindowTitle(QString::fromLatin1("QtAV %1 wbsecg1@gmail.com").arg(QtAV_Version_String_Long()));
+    window.setWindowTitle(QString::fromLatin1("Qt video player -- Secondary development by LiJue"));
     AppEventFilter ae(&window);
     qApp->installEventFilter(&ae);
 
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
     op = options.option(QString::fromLatin1("height"));
     int h = op.value().toInt();
     op = options.option(QString::fromLatin1("x"));
-    if (op.isSet())
+    if (op.isSet())                          //检测x参数是否被设置
         x = op.value().toInt();
     op = options.option(QString::fromLatin1("y"));
     if (op.isSet())

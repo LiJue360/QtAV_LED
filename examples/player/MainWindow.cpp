@@ -19,6 +19,8 @@
 ******************************************************************************/
 #include "MainWindow.h"
 #include "EventFilter.h"
+#include "VideoRenderer_p.h"
+#include "dptr.h"
 #include <QtAV>
 #include <QtAV/OpenGLVideo.h>
 #include <QtAV/VideoShaderObject.h>
@@ -27,6 +29,7 @@
 #include <QtCore/QLocale>
 #include <QtCore/QTimer>
 #include <QTimeEdit>
+#include <QUdpSocket>
 #include <QLabel>
 #include <QApplication>
 #include <QDesktopWidget>
@@ -50,6 +53,7 @@
 #include <QToolTip>
 #include <QKeyEvent>
 #include <QWheelEvent>
+#include <QBuffer>
 #include <QStyleFactory>
 
 #include "ClickableMenu.h"
@@ -114,12 +118,13 @@ MainWindow::MainWindow(QWidget *parent) :
   , m_preview(0)
   , m_shader(NULL)
   , m_glsl(NULL)
+  , d(NULL)
 {
     #if defined(Q_OS_MACX) && QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
         QApplication::setStyle(QStyleFactory::create("Fusion"));
     #endif
 
-    setWindowIcon(QIcon(QString::fromLatin1(":/QtAV.svg")));
+//     setWindowIcon(QIcon(QString::fromLatin1(":/QtAV.svg")));
     mpOSD = new OSDFilter(this);
     mpSubtitle = new SubtitleFilter(this);
     mpChannelAction = 0;
@@ -203,6 +208,8 @@ void MainWindow::initPlayer()
     connect(mpVideoEQ, SIGNAL(hueChanegd(int)), this, SLOT(onHueChanged(int)));
     connect(mpVideoEQ, SIGNAL(saturationChanged(int)), this, SLOT(onSaturationChanged(int)));
 
+    connect(this,SIGNAL(imageReady()),SLOT(VideoSend()));
+
     connect(mpCaptureBtn, SIGNAL(clicked()), mpPlayer->videoCapture(), SLOT(capture()));
 
     emit ready(); //emit this signal after connection. otherwise the slots may not be called for the first time
@@ -264,9 +271,9 @@ void MainWindow::setupUi()
     mpOpenBtn->setToolTip(tr("Open"));
     mpOpenBtn->setIcon(QIcon(QString::fromLatin1(":/theme/dark/open.svg")));
 
-    mpInfoBtn = new QToolButton();
-    mpInfoBtn->setToolTip(QString::fromLatin1("Media information"));
-    mpInfoBtn->setIcon(QIcon(QString::fromLatin1(":/theme/dark/info.svg")));
+//    mpInfoBtn = new QToolButton();
+//    mpInfoBtn->setToolTip(QString::fromLatin1("Media information"));
+//    mpInfoBtn->setIcon(QIcon(QString::fromLatin1(":/theme/dark/info.svg")));
     mpCaptureBtn = new QToolButton();
     mpCaptureBtn->setToolTip(tr("Capture"));
     mpCaptureBtn->setIcon(QIcon(QString::fromLatin1(":/theme/dark/capture.svg")));
@@ -320,11 +327,11 @@ void MainWindow::setupUi()
     mpMenu->addSeparator();
 
     //mpMenu->addAction(tr("Report"))->setEnabled(false); //report bug, suggestions etc. using maillist?
-    mpMenu->addAction(tr("About"), this, SLOT(about()));
-    mpMenu->addAction(tr("Help"), this, SLOT(help()));
-    mpMenu->addAction(tr("Donate"), this, SLOT(donate()));
-    mpMenu->addAction(tr("Setup"), this, SLOT(setup()));
-    mpMenu->addSeparator();
+//    mpMenu->addAction(tr("About"), this, SLOT(about()));
+//    mpMenu->addAction(tr("Help"), this, SLOT(help()));
+//    mpMenu->addAction(tr("Donate"), this, SLOT(donate()));
+//    mpMenu->addAction(tr("Setup"), this, SLOT(setup()));
+//    mpMenu->addSeparator();
     mpMenuBtn->setMenu(mpMenu);
     mpMenu->addSeparator();
 
@@ -387,7 +394,7 @@ void MainWindow::setupUi()
     mpMenu->addSeparator();
 
     subMenu = new ClickableMenu(tr("Clock"));
-    mpMenu->addMenu(subMenu);
+ //   mpMenu->addMenu(subMenu);
     QActionGroup *ag = new QActionGroup(subMenu);
     ag->setExclusive(true);
     connect(subMenu, SIGNAL(triggered(QAction*)), SLOT(changeClockType(QAction*)));
@@ -403,7 +410,7 @@ void MainWindow::setupUi()
     autoClockAction->setToolTip(tr("Take effect in next playback"));
 
     subMenu = new ClickableMenu(tr("Subtitle"));
-    mpMenu->addMenu(subMenu);
+ //   mpMenu->addMenu(subMenu);
     QAction *act = subMenu->addAction(tr("Enable"));
     act->setCheckable(true);
     act->setChecked(mpSubtitle->isEnabled());
@@ -412,7 +419,7 @@ void MainWindow::setupUi()
     act->setCheckable(true);
     act->setChecked(mpSubtitle->autoLoad());
     connect(act, SIGNAL(toggled(bool)), SLOT(toggleSubtitleAutoLoad(bool)));
-    subMenu->addAction(tr("Open"), this, SLOT(openSubtitle()));
+ //   subMenu->addAction(tr("Open"), this, SLOT(openSubtitle()));
 
     wgt = new QWidget();
     hb = new QHBoxLayout();
@@ -448,13 +455,13 @@ void MainWindow::setupUi()
     box->setToolTip(tr("Auto detect requires libchardet"));
 
     subMenu = new ClickableMenu(tr("Audio track"));
-    mpMenu->addMenu(subMenu);
+//    mpMenu->addMenu(subMenu);
     mpAudioTrackMenu = subMenu;
     connect(subMenu, SIGNAL(triggered(QAction*)), SLOT(changeAudioTrack(QAction*)));
     initAudioTrackMenu();
 
     subMenu = new ClickableMenu(tr("Channel"));
-    mpMenu->addMenu(subMenu);
+//    mpMenu->addMenu(subMenu);
     mpChannelMenu = subMenu;
     connect(subMenu, SIGNAL(triggered(QAction*)), SLOT(changeChannel(QAction*)));
     subMenu->addAction(tr("As input"))->setData(AudioFormat::ChannelLayout_Unsupported); //will set to input in resampler if not supported.
@@ -470,7 +477,7 @@ void MainWindow::setupUi()
     }
 
     subMenu = new QMenu(tr("Aspect ratio"), mpMenu);
-    mpMenu->addMenu(subMenu);
+//    mpMenu->addMenu(subMenu);
     connect(subMenu, SIGNAL(triggered(QAction*)), SLOT(switchAspectRatio(QAction*)));
     mpARAction = subMenu->addAction(tr("Video"));
     mpARAction->setData(0);
@@ -491,8 +498,46 @@ void MainWindow::setupUi()
     pWA->setDefaultWidget(mpVideoEQ);
     subMenu->addAction(pWA);
 
-    subMenu = new ClickableMenu(tr("Decoder"));
+    subMenu = new ClickableMenu(tr("Send data"));
     mpMenu->addMenu(subMenu);
+    mpSendDataEnableAction = subMenu->addAction(tr("Enable"));
+    mpSendDataEnableAction->setCheckable(true);
+    connect(mpSendDataEnableAction, SIGNAL(toggled(bool)), SLOT(toggleDataSend(bool)));
+    ReceiverIP = new QLineEdit(this);
+    QLabel *mpReceiverIPLabel = new QLabel(tr("ReceiverIP："));
+    hb = new QHBoxLayout;
+    hb->addWidget(mpReceiverIPLabel);
+    hb->addWidget(ReceiverIP);
+    vb = new QVBoxLayout;
+    vb->addLayout(hb);
+    ReceiverPort = new QLineEdit(this);
+    QLabel *ReceiverPortLabel = new QLabel(tr("ReceiverPort："));
+    hb = new QHBoxLayout;
+    hb->addWidget(ReceiverPortLabel);
+    hb->addWidget(ReceiverPort);
+    vb->addLayout(hb);
+
+    pktlen = new QLineEdit(this);
+    QLabel *pktlenLabel = new QLabel(tr("pktlen："));
+    hb = new QHBoxLayout;
+    hb->addWidget(pktlenLabel);
+    hb->addWidget(pktlen);
+    vb->addLayout(hb);
+
+    hb = new QHBoxLayout;
+    sendInfo = new QLabel;
+    hb->addWidget(sendInfo);
+    vb->addLayout(hb);
+    wgt = new QWidget;
+    wgt->setLayout(vb);
+    pWA = new QWidgetAction(0);
+    pWA->setDefaultWidget(wgt);
+    subMenu->addAction(pWA);
+    mpSendDataAction = pWA;
+
+
+    subMenu = new ClickableMenu(tr("Decoder"));
+//    mpMenu->addMenu(subMenu);
     mpDecoderConfigPage = new DecoderConfigPage();
     pWA = new QWidgetAction(0);
     pWA->setDefaultWidget(mpDecoderConfigPage);
@@ -505,7 +550,8 @@ void MainWindow::setupUi()
     VideoRendererId *vo = NULL;
     while ((vo = VideoRenderer::next(vo))) {
         // skip non-widget renderers
-        if (*vo == VideoRendererId_OpenGLWindow || *vo == VideoRendererId_GraphicsItem)
+        if (*vo == VideoRendererId_OpenGLWindow || *vo == VideoRendererId_GraphicsItem || *vo == VideoRendererId_Direct2D
+                || *vo == VideoRendererId_GDI)
             continue;
         QAction *voa = subMenu->addAction(QString::fromLatin1(VideoRenderer::name(*vo)));
         voa->setData(*vo);
@@ -530,13 +576,13 @@ void MainWindow::setupUi()
     controlLayout->addSpacerItem(space);
     controlLayout->addWidget(mpVolumeSlider);
     controlLayout->addWidget(mpVolumeBtn);
-    controlLayout->addWidget(mpCaptureBtn);
+//    controlLayout->addWidget(mpCaptureBtn);
     controlLayout->addWidget(mpPlayPauseBtn);
     controlLayout->addWidget(mpStopBtn);
     controlLayout->addWidget(mpBackwardBtn);
     controlLayout->addWidget(mpForwardBtn);
     controlLayout->addWidget(mpOpenBtn);
-    controlLayout->addWidget(mpInfoBtn);
+//    controlLayout->addWidget(mpInfoBtn);
     controlLayout->addWidget(mpSpeed);
     //controlLayout->addWidget(mpSetupBtn);
     controlLayout->addWidget(mpMenuBtn);
@@ -545,7 +591,7 @@ void MainWindow::setupUi()
     connect(pSpeedBox, SIGNAL(valueChanged(double)), SLOT(onSpinBoxChanged(double)));
     connect(mpOpenBtn, SIGNAL(clicked()), SLOT(openFile()));
     connect(mpPlayPauseBtn, SIGNAL(clicked()), SLOT(togglePlayPause()));
-    connect(mpInfoBtn, SIGNAL(clicked()), SLOT(showInfo()));
+//    connect(mpInfoBtn, SIGNAL(clicked()), SLOT(showInfo()));
     //valueChanged can be triggered by non-mouse event
     connect(mpTimeSlider, SIGNAL(sliderMoved(int)), SLOT(seek(int)));
     connect(mpTimeSlider, SIGNAL(sliderPressed()), SLOT(seek()));
@@ -728,10 +774,10 @@ void MainWindow::play(const QString &name)
 {
     mFile = name;
     if (!mIsReady) {
-        mHasPendingPlay = true;
+        mHasPendingPlay = true;     //更新状态-有待播放的任务
         return;
     }
-    mTitle = mFile;
+    mTitle = mFile;                     //获取播放的文件名称
     if (!mFile.contains(QLatin1String("://")) || mFile.startsWith(QLatin1String("file://"))) {
         mTitle = QFileInfo(mFile).fileName();
     }
@@ -1257,6 +1303,26 @@ void MainWindow::toggleRepeat(bool r)
     }
 }
 
+void MainWindow::toggleDataSend(bool r)
+{
+    mpSendDataEnableAction->setChecked(r);
+    if(r){
+        ReceiverIPText = ReceiverIP->text();
+        ReceiverPortText = ReceiverPort->text();
+        pktlenText = pktlen->text();
+        sendInfo->setText("Set IPs and ports successfully");
+    } else {
+        ReceiverIPText = "";
+        ReceiverIP->setText(ReceiverIPText);
+        ReceiverPortText = "";
+        ReceiverPort->setText(ReceiverPortText);
+        pktlenText = "";
+        pktlen->setText(pktlenText);
+        sendInfo->setText("Stop connection");
+    }
+
+}
+
 void MainWindow::setRepeateMax(int m)
 {
     mRepeateMax = m;
@@ -1392,7 +1458,9 @@ void MainWindow::onMediaStatusChanged()
         break;
     }
     qDebug() << "status changed " << status;
-    setWindowTitle(status + QString::fromLatin1(" ") + mTitle);
+    std::string tempString = " -- 由李珏二次开发";
+    QTextCodec *code = QTextCodec::codecForName("UTF-8");
+    setWindowTitle(status + QString::fromLatin1(" ") + mTitle + code->toUnicode(tempString.c_str()));
 }
 
 void MainWindow::onBufferProgress(qreal percent)
@@ -1473,6 +1541,60 @@ void MainWindow::onSaturationChanged(int s)
     } else {
         vo->setSaturation(0);
         mpPlayer->setSaturation(s);
+    }
+}
+QByteArray MainWindow::dec2hex2(int a)
+{
+    QByteArray array;
+    array[0] = (uchar)(a>>8 & 0xff);
+    array[1] = (uchar)(a    & 0xff);
+    return array;
+}
+void MainWindow::VideoSend()
+{
+//    DPTR_D(VideoRenderer);
+    if(!ReceiverIPText.isEmpty())
+    {
+        static int n = 0;
+        QByteArray sendbyte;
+        QByteArray head;  // 定义包头
+        head.append(1);//包头首字节赋值为1，作为一帧第一包的标志
+        int l=d->video_frame.width(); //int的存储是小端模式，低位在前，frame.cols和frame.rows
+        int h=d->video_frame.height(); //是32位的，而QByteArray每个元素是16位的
+        head.append(dec2hex2(l),2);//写入一行长度(.append为追加行长数据)
+        head.append(dec2hex2(h),2);//这里int分两次取2byte，存储在相邻两个单元
+
+        qDebug()<<"第 "<<++n<<"frame 帧";
+        qDebug()<<"head = "<<head.toHex();
+        qDebug()<<"The size of head is "<<head.size();
+        // 定义将要发送的数据
+
+        QByteArray byte;
+        QBuffer buffer(&byte);//缓冲区绑定数据源
+        buffer.open(QIODevice::WriteOnly);
+
+        buffer.write(d->video_frame.data());
+        //每帧图像分包，分多次发送，总大小为ByteLen，每次发送的大小为sendLen，比较//可知是否完整发完本帧的数据。
+        int ByteLen = byte.size();
+        int sendLen = 0;
+        qDebug()  << "byte.size :" << ByteLen;
+
+      while(ByteLen > sendLen )
+        {
+         // 填充要发送的数据
+            sendbyte.append (head);//加上每包数据的3byte
+            sendbyte.append (byte.mid(sendLen,pktlenText.toInt()));// 在ui界面文本框中设置分包大小
+         //发送
+            int len = udpsocket->writeDatagram(sendbyte,sendbyte.size(),QHostAddress(ReceiverIPText),ReceiverPortText.toInt());
+            //总发送长度减去head的长度，得到有效数据的发送长度
+        sendLen += len-head.size();
+            qDebug() <<"本次发送出数据长度为 this time:" << len-head.size()
+            << "已发送数据长度为 Has been sent：" << sendLen << " 此帧像素数据总长度为 The total length：" << ByteLen ;
+            sendbyte.clear();
+            udpsocket->flush();
+            head[0]=0x00;//除了一帧第一包的包头外，其余包的包头首字节均赋值为0，作//为一帧非第一包标志
+        }
+        byte.clear();
     }
 }
 

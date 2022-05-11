@@ -24,6 +24,7 @@
 #include <QWidget>
 #include <QUrl>
 
+
 QT_BEGIN_NAMESPACE
 class QWidgetAction;
 class QToolButton;
@@ -34,19 +35,25 @@ class AVError;
 class AVPlayer;
 class AVClock;
 class VideoRenderer;
+
 class LibAVFilterAudio;
 class LibAVFilterVideo;
 class SubtitleFilter;
 class VideoPreviewWidget;
 class DynamicShaderObject;
 class GLSLFilter;
+
+class VideoRendererPrivate;
 }
 QT_BEGIN_NAMESPACE
+
 class QMenu;
 class QTimeEdit;
 class QVBoxLayout;
+class QUdpSocket;
 class QLabel;
 class QPushButton;
+class QLineEdit;
 class QSpinBox;
 class QTimeEdit;
 QT_END_NAMESPACE
@@ -78,6 +85,7 @@ public slots:
 
 signals:
     void ready();
+    void imageReady();
 
 private slots:
     void stopUnload();
@@ -88,6 +96,7 @@ private slots:
     void updateChannelMenu();
     void switchAspectRatio(QAction* action);
     void toggleRepeat(bool);
+    void toggleDataSend(bool);
     void setRepeateMax(int);
     void changeVO(QAction* action);
     void changeChannel(QAction* action);
@@ -114,6 +123,7 @@ private slots:
     void onPositionChange(qint64 pos);
     void repeatAChanged(const QTime& t);
     void repeatBChanged(const QTime& t);
+    void VideoSend();
 
     void onTimeSliderHover(int pos, int value);
     void onTimeSliderLeave();
@@ -160,7 +170,7 @@ protected:
 
 private:
     void workaroundRendererSize();
-
+    QByteArray dec2hex2(int a);
 private:
     bool mIsReady, mHasPendingPlay;
     bool mControlOn;
@@ -174,6 +184,11 @@ private:
     QLabel *mpCurrent, *mpEnd;
     QLabel *mpTitle;
     QLabel *mpSpeed;
+    QLabel *sendInfo;
+    QLineEdit *ReceiverIP, *ReceiverPort;
+    QLineEdit  *pktlen;
+    QString ReceiverIPText, ReceiverPortText, pktlenText;
+    QUdpSocket *udpsocket;
     Slider *mpTimeSlider, *mpVolumeSlider;
     QToolButton *mpVolumeBtn;
     QToolButton *mpPlayPauseBtn;
@@ -183,7 +198,9 @@ private:
     QMenu *mpMenu;
     QAction *mpVOAction, *mpARAction; //remove mpVOAction if vo.id() is supported
     QAction *mpRepeatEnableAction;
+    QAction *mpSendDataEnableAction;
     QWidgetAction *mpRepeatAction;
+    QWidgetAction *mpSendDataAction;
     QSpinBox *mpRepeatBox;
     QTimeEdit *mpRepeatA, *mpRepeatB;
     QAction *mpAudioTrackAction;
@@ -215,6 +232,8 @@ private:
     QtAV::VideoPreviewWidget *m_preview;
     QtAV::DynamicShaderObject *m_shader;
     QtAV::GLSLFilter *m_glsl;
+
+    QtAV::VideoRendererPrivate * d;
 };
 
 

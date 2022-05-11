@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     QtAV:  Multimedia framework based on Qt and FFmpeg
     Copyright (C) 2012-2017 Wang Bin <wbsecg1@gmail.com>
 
@@ -1260,6 +1260,8 @@ void AVPlayer::playInternal()
     }
     masterClock()->setInitialValue((double)absoluteMediaStartPosition()/1000.0);
     // from previous play()
+
+    //开启音视频解码线程
     if (d->demuxer.audioCodecContext() && d->athread) {
         qDebug("Starting audio thread...");
         d->athread->start();
@@ -1268,7 +1270,7 @@ void AVPlayer::playInternal()
         qDebug("Starting video thread...");
         d->vthread->start();
     }
-
+    //若音频或视频解码线程无法正常进行，则标记阻塞状态
     if (d->demuxer.audioCodecContext() && d->athread)
         d->athread->waitForStarted();
     if (d->demuxer.videoCodecContext() && d->vthread)
